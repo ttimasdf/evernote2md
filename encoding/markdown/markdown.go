@@ -17,7 +17,9 @@ const (
 	// Image can be displayed using common ![]() syntax
 	Image ResourceType = "image"
 	// File should be referenced as an external resource []()
-	File ResourceType = "file"
+	File       ResourceType = "file"
+	ImageAsset ResourceType = "imageasset"
+	FileAsset  ResourceType = "fileasset"
 )
 
 type (

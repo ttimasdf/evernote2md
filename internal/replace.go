@@ -55,8 +55,10 @@ type Media struct {
 }
 
 var htmlFormat = map[markdown.ResourceType]string{
-	markdown.Image: `<img src="%s/%s" alt="%s" />`,
-	markdown.File:  `<a href="./%s/%s">%s</a>`,
+	markdown.Image:      `<img src="%s/%s" alt="%s" />`,
+	markdown.File:       `<a href="./%s/%s">%s</a>`,
+	markdown.ImageAsset: `<img asset-type="%s" src="assets/%s" alt="%s" />`,
+	markdown.FileAsset:  `<a asset-type="%s" href="./assets/%s">%s</a>`,
 }
 
 // NewReplacerMedia creates a Media TagReplacer using resources as a data source

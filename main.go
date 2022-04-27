@@ -37,7 +37,7 @@ func main() {
 	var input, outputOverride string
 	var outputDir = filepath.FromSlash("./notes")
 	var tagTemplate = internal.DefaultTagTemplate
-	var folders, noHighlights, resetTimestamps, addFrontMatter, debug bool
+	var folders, noHighlights, resetTimestamps, addFrontMatter, skipWebClipper, assetsFolder, debug bool
 
 	flaggy.AddPositionalValue(&input, "input", 1, true, "Evernote export file, directory or a glob pattern")
 	flaggy.AddPositionalValue(&outputDir, "output", 2, false, "Output directory")
@@ -49,6 +49,8 @@ func main() {
 	flaggy.Bool(&noHighlights, "", "noHighlights", "Disable converting Evernote highlights to inline HTML tags")
 	flaggy.Bool(&resetTimestamps, "", "resetTimestamps", "Create files ignoring timestamps in the note attributes")
 	flaggy.Bool(&addFrontMatter, "", "addFrontMatter", "Prepend FrontMatter to markdown files")
+	flaggy.Bool(&skipWebClipper, "", "skipWebClipper", "Skip notes clipped by webclipper")
+	flaggy.Bool(&assetsFolder, "", "assetFolder", "save resources in assets/ folder")
 	flaggy.Bool(&debug, "v", "debug", "Show debug output")
 
 	flaggy.Parse()
@@ -59,8 +61,8 @@ func main() {
 
 	files, err := matchInput(input)
 	failWhen(err)
-	output := newNoteFilesDir(outputDir, folders, !resetTimestamps)
-	converter, err := internal.NewConverter(tagTemplate, addFrontMatter, !noHighlights)
+	output := newNoteFilesDir(outputDir, folders, !resetTimestamps, assetsFolder)
+	converter, err := internal.NewConverter(tagTemplate, addFrontMatter, !noHighlights, skipWebClipper, assetsFolder)
 	failWhen(err)
 
 	setLogLevel(debug)
@@ -80,6 +82,10 @@ func run(files []string, output *noteFilesDir, progress *pb.ProgressBar, c *inte
 	n := export.Notes
 	for i := range n {
 		log.Printf("[DEBUG] Converting a note: %s", n[i].Title)
+		if c.SkipWebClipper && n[i].IsFromWebClipper() {
+			log.Printf("[DEBUG] Skipped note from web clipper %s", n[i].Title)
+			continue
+		}
 		md, err := c.Convert(&n[i])
 		failWhen(err)
 		err = output.SaveNote(n[i].Title, md)

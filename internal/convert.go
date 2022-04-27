@@ -51,6 +51,8 @@ type Converter struct {
 	EnableHighlights    bool
 	EnableFrontMatter   bool
 	FrontMatterTemplate string
+	SkipWebClipper      bool
+	assetFolder         bool
 
 	// err holds an error during conversion
 	// Every conversion step should check this field and skip execution if it is not empty
@@ -58,7 +60,7 @@ type Converter struct {
 }
 
 // NewConverter creates a Converter with valid tagTemplate
-func NewConverter(tagTemplate string, enableFrontMatter bool, enableHighlights bool) (*Converter, error) {
+func NewConverter(tagTemplate string, enableFrontMatter bool, enableHighlights bool, skipWebClipper bool, assetFolder bool) (*Converter, error) {
 	if tagTemplate == "" {
 		tagTemplate = DefaultTagTemplate
 	}
@@ -67,7 +69,14 @@ func NewConverter(tagTemplate string, enableFrontMatter bool, enableHighlights b
 		return nil, errors.New("tag format should contain exactly one {{tag}} template variable")
 	}
 
-	return &Converter{TagTemplate: tagTemplate, EnableFrontMatter: enableFrontMatter, FrontMatterTemplate: FrontMatterTemplate, EnableHighlights: enableHighlights}, nil
+	return &Converter{
+		TagTemplate:         tagTemplate,
+		EnableFrontMatter:   enableFrontMatter,
+		FrontMatterTemplate: FrontMatterTemplate,
+		EnableHighlights:    enableHighlights,
+		SkipWebClipper:      skipWebClipper,
+		assetFolder:         assetFolder,
+	}, nil
 }
 
 // Convert an Evernote file to markdown
@@ -77,13 +86,18 @@ func (c *Converter) Convert(note *enex.Note) (*markdown.Note, error) {
 
 	c.mapResources(note, md)
 	c.normalizeHTML(note, md, NewReplacerMedia(md.Media), &Code{}, &ExtraDiv{}, &TextFormatter{}, &EmptyAnchor{})
-	c.toMarkdown(note, md)
-	c.prependTags(note, md)
-	c.prependTitle(note, md)
-	c.trimSpaces(note, md)
-	c.addDates(note, md)
-	if c.EnableFrontMatter {
-		c.addFrontMatter(note, md)
+	if note.IsFromWebClipper() {
+		log.Printf("[DEBUG] Note from web clipper remains HTML %s", note.Title)
+		md.Content = note.Content
+	} else {
+		c.toMarkdown(note, md)
+		c.prependTags(note, md)
+		c.prependTitle(note, md)
+		c.trimSpaces(note, md)
+		c.addDates(note, md)
+		if c.EnableFrontMatter {
+			c.addFrontMatter(note, md)
+		}
 	}
 
 	return md, c.err
@@ -95,18 +109,30 @@ func (c *Converter) mapResources(note *enex.Note, md *markdown.Note) {
 	for i := range r {
 		p, err := io.ReadAll(decoder(r[i].Data))
 		if c.err = err; err != nil {
+			log.Printf("[ERROR] resource decode failed: %s", err)
 			return
 		}
 
-		rType := markdown.File
-		if isImage(r[i].Mime) {
-			rType = markdown.Image
+		var rType markdown.ResourceType
+		if c.assetFolder && !note.IsFromWebClipper() {
+			if isImage(r[i].Mime) {
+				rType = markdown.ImageAsset
+			} else {
+				rType = markdown.FileAsset
+			}
+		} else {
+			if isImage(r[i].Mime) {
+				rType = markdown.Image
+			} else {
+				rType = markdown.File
+			}
 		}
 		name, ext := name(r[i])
 
 		// Ensure the name is unique
 		if cnt, exist := names[name+ext]; exist {
 			names[name+ext] = cnt + 1
+			log.Printf("[DEBUG] Found Duplicate image name, exist %d times: %s%s", cnt, name, ext)
 			name = fmt.Sprintf("%s-%d", name, cnt)
 		} else {
 			names[name+ext] = 1

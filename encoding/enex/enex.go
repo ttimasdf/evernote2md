@@ -117,3 +117,7 @@ func newDecoder(r io.Reader) *xml.Decoder {
 	d.Strict = false
 	return d
 }
+
+func (note *Note) IsFromWebClipper() bool {
+	return note.Attributes.Source == "web.clip7" || bytes.Contains(note.Content, []byte("-evernote-webclip"))
+}

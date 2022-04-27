@@ -16,19 +16,21 @@ type noteFilesDir struct {
 	path string
 
 	// flags modifying the logic for saving notes
-	flagFolders    bool
-	flagTimestamps bool
+	flagFolders      bool
+	flagTimestamps   bool
+	flagAssetsFolder bool
 
 	// A map to keep track of what notes are already created
 	names map[string]int
 }
 
-func newNoteFilesDir(output string, folders, timestamps bool) *noteFilesDir {
+func newNoteFilesDir(output string, folders, timestamps bool, flagAssetsFolder bool) *noteFilesDir {
 	return &noteFilesDir{
-		path:           output,
-		flagFolders:    folders,
-		flagTimestamps: timestamps,
-		names:          map[string]int{},
+		path:             output,
+		flagFolders:      folders,
+		flagTimestamps:   timestamps,
+		flagAssetsFolder: flagAssetsFolder,
+		names:            map[string]int{},
 	}
 }
 
@@ -39,7 +41,11 @@ func (d *noteFilesDir) SaveNote(title string, md *markdown.Note) error {
 		path = filepath.Join(d.path, d.uniqueName(title))
 		title = "README.md"
 	} else {
-		title = d.uniqueName(title) + ".md"
+		if bytes.Contains(md.Content, []byte("</div>")) {
+			title = d.uniqueName(title) + ".html"
+		} else {
+			title = d.uniqueName(title) + ".md"
+		}
 	}
 
 	log.Printf("[DEBUG] Saving file %s/%s", path, title)
@@ -55,7 +61,13 @@ func (d *noteFilesDir) SaveNote(title string, md *markdown.Note) error {
 	}
 
 	for _, res := range md.Media {
-		mediaPath := filepath.Join(path, string(res.Type))
+		var mediaPath string
+		if res.Type == markdown.FileAsset || res.Type == markdown.ImageAsset {
+			mediaPath = filepath.Join(path, "assets")
+		} else {
+			mediaPath = filepath.Join(path, string(res.Type))
+		}
+
 		log.Printf("[DEBUG] Saving attachment %s", filepath.Join(mediaPath, res.Name))
 		if err := file.Save(mediaPath, res.Name, bytes.NewReader(res.Content)); err != nil {
 			return fmt.Errorf("save resource %s: %w", filepath.Join(mediaPath, res.Name), err)

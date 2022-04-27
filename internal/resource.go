@@ -2,7 +2,9 @@ package internal
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"io"
 	"mime"
 	"path"
@@ -35,7 +37,13 @@ func name(r enex.Resource) (name string, extension string) {
 	ff := reFileAndExt.FindStringSubmatch(name)
 	if len(ff) < 2 {
 		// Guess the extension by the mime type
-		return file.BaseName(name), guessExt(r.Mime)
+		basename := file.BaseName(name)
+		if basename == "" {
+			bytes := make([]byte, 8)
+			rand.Read(bytes)
+			basename = hex.EncodeToString(bytes)
+		}
+		return basename, guessExt(r.Mime)
 	}
 
 	// Return sanitized filename
